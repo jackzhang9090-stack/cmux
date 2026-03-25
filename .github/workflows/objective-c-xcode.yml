@@ -1,0 +1,49 @@
+name: Build Intel macOS app
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-intel:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Download prebuilt GhosttyKit
+        run: ./scripts/download-prebuilt-ghosttykit.sh
+
+      - name: Build Intel Release
+        run: |
+          xcodebuild \
+            -project GhosttyTabs.xcodeproj \
+            -scheme cmux \
+            -configuration Release \
+            -derivedDataPath build \
+            -destination 'platform=macOS' \
+            ARCHS=x86_64 \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Verify architecture
+        run: |
+          file build/Build/Products/Release/cmux.app/Contents/MacOS/cmux
+
+      - name: Package app
+        run: |
+          cd build/Build/Products/Release
+          ditto -c -k --sequesterRsrc --keepParent cmux.app cmux-intel.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmux-intel-unsigned
+          path: build/Build/Products/Release/cmux-intel.zip
