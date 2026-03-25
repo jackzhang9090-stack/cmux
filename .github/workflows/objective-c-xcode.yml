@@ -17,8 +17,40 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
 
+      - name: Install zig (x86_64)
+        run: |
+          ZIG_REQUIRED="0.15.2"
+          if command -v zig >/dev/null 2>&1 && zig version 2>/dev/null | grep -q "^${ZIG_REQUIRED}"; then
+            echo "zig ${ZIG_REQUIRED} already installed"
+          else
+            echo "Installing zig ${ZIG_REQUIRED} for x86_64 from tarball"
+            curl -fSL "https://ziglang.org/download/${ZIG_REQUIRED}/zig-x86_64-macos-${ZIG_REQUIRED}.tar.xz" -o /tmp/zig.tar.xz
+            tar xf /tmp/zig.tar.xz -C /tmp
+            sudo mkdir -p /usr/local/bin /usr/local/lib
+            sudo cp -f /tmp/zig-x86_64-macos-${ZIG_REQUIRED}/zig /usr/local/bin/zig
+            sudo cp -rf /tmp/zig-x86_64-macos-${ZIG_REQUIRED}/lib /usr/local/lib/zig
+            export PATH="/usr/local/bin:$PATH"
+            zig version
+          fi
+
       - name: Download prebuilt GhosttyKit
         run: ./scripts/download-prebuilt-ghosttykit.sh
+
+      - name: Verify GhosttyKit architecture
+        run: |
+          if [ -d "GhosttyKit.xcframework" ]; then
+            echo "Checking GhosttyKit.xcframework architectures..."
+            find GhosttyKit.xcframework -name "*.framework" -type d | while read framework; do
+              if [ -f "$framework/$(basename "$framework" .framework)" ]; then
+                echo "Framework: $(basename "$framework")"
+                file "$framework/$(basename "$framework" .framework)"
+                lipo -info "$framework/$(basename "$framework" .framework)" 2>/dev/null || true
+              fi
+            done
+          else
+            echo "GhosttyKit.xcframework not found"
+            exit 1
+          fi
 
       - name: Build Intel Release
         run: |
@@ -35,7 +67,9 @@ jobs:
 
       - name: Verify architecture
         run: |
+          echo "Verifying built app architecture..."
           file build/Build/Products/Release/cmux.app/Contents/MacOS/cmux
+          lipo -info build/Build/Products/Release/cmux.app/Contents/MacOS/cmux 2>/dev/null || true
 
       - name: Package app
         run: |
