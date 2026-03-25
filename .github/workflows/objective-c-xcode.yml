@@ -60,16 +60,30 @@ jobs:
             -configuration Release \
             -derivedDataPath build \
             -destination 'platform=macOS' \
-            ARCHS=x86_64 \
-            ONLY_ACTIVE_ARCH=YES \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO \
             build
 
       - name: Verify architecture
         run: |
           echo "Verifying built app architecture..."
-          file build/Build/Products/Release/cmux.app/Contents/MacOS/cmux
-          lipo -info build/Build/Products/Release/cmux.app/Contents/MacOS/cmux 2>/dev/null || true
+          APP_BINARY="build/Build/Products/Release/cmux.app/Contents/MacOS/cmux"
+          if [ -f "$APP_BINARY" ]; then
+            file "$APP_BINARY"
+            lipo -info "$APP_BINARY" 2>/dev/null || true
+            ARCHS="$(lipo -archs "$APP_BINARY" 2>/dev/null || echo 'unknown')"
+            echo "App binary architectures: $ARCHS"
+            if [[ "$ARCHS" == *x86_64* ]]; then
+              echo "✅ x86_64 architecture found"
+            else
+              echo "❌ x86_64 architecture NOT found"
+              exit 1
+            fi
+          else
+            echo "❌ App binary not found at $APP_BINARY"
+            exit 1
+          fi
 
       - name: Package app
         run: |
